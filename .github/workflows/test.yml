@@ -149,8 +149,6 @@ jobs:
       - name: Install Chainsaw
         uses: kyverno/action-install-chainsaw@748066cc1580718e7924c9b689a8d366bde05100 # v0.2.0
       - name: Test with Chainsaw
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           chainsaw test --config .chainsaw.yaml  --include-test-regex '^chainsaw$/${{ matrix.tests }}' --test-file='chainsaw-test-vap' --no-color=false
