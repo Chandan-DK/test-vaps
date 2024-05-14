@@ -8,7 +8,7 @@ metadata:
   - apiVersion: kyverno.io/v1
     kind: ClusterPolicy
     name: disallow-capabilities
-spec: {}
+
 
 
 
