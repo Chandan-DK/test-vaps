@@ -1,0 +1,30 @@
+name: My experiments with GitHub Actions
+
+on:
+    workflow_dispatch: {}
+    pull_request:
+        branches:
+            - 'main'
+
+jobs:
+    my-tests:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Run pwd, tree, $GITHUB_WORKSPACE
+              run: |
+                pwd
+                tree
+                echo "Github workspace path: $GITHUB_WORKSPACE"
+            - name: Checkout 
+              uses: actions/checkout@v4
+              with:
+                path: my-path # Relative path under $GITHUB_WORKSPACE to place the repository
+                # The path will be created if it is not present
+                # Here is the GH Actin Run to see the behaviour
+                # https://github.com/Chandan-DK/gh-actions-vap/actions/runs/9020573020/job/24786020294
+            - name: Run pwd, tree, $GITHUB_WORKSPACE after checking out
+              run: |
+                pwd
+                tree
+                echo "Github workspace path: $GITHUB_WORKSPACE"
+

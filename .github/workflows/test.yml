@@ -1,0 +1,122 @@
+name: E2E Tests
+
+# permissions: {}
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - 'main'
+
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
+
+jobs:
+  validatingadmissionpolicies-v1alpha1:
+    name: ${{ matrix.k8s-version.name }} - validating-admission-policies - ${{ matrix.tests }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s-version:
+          - name: v1.27
+            version: v1.27.10
+        tests:
+          - ^pod-security-cel$
+          - ^consul-cel$
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b # v4.1.5
+      - name: Create kind cluster
+        uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.10.0
+        with:
+          node_image: kindest/node:${{ matrix.k8s-version.version }}
+          cluster_name: kind
+          config: ./.github/scripts/config/kind/vap-v1alpha1.yaml
+      - name: Install latest kyverno with VAP generation enabled
+        run: |
+          set -e
+          
+          echo -e "\nDownloading the latest Kyverno installation YAML file..."
+          wget -O install-latest-testing.yaml https://github.com/kyverno/kyverno/raw/main/config/install-latest-testing.yaml
+
+          echo -e "\nEnabling Validating Admission Policy generation..."
+          sed -i 's/--generateValidatingAdmissionPolicy=false/--generateValidatingAdmissionPolicy=true/g' ./install-latest-testing.yaml
+
+          echo -e "\nInstalling Kyverno in the cluster..."
+          kubectl create -f ./install-latest-testing.yaml
+
+          echo -e "\nGranting permissions to Kyverno for VAP generation..."
+          kubectl create -f ./.github/scripts/config/generate-validating-admission-policy/generate-vap-cr.yaml
+      - name: Wait for kyverno ready
+        run: |
+          set -e
+          kubectl wait --namespace kyverno --for=condition=ready pod --selector '!job-name' --timeout=120s
+      - name: Install CRDs
+        run: |
+          set -e
+          kubectl apply -f ./.chainsaw/crds
+      - name: Install Chainsaw
+        uses: kyverno/action-install-chainsaw@995cddaee7702e849270b84fa44cdcebe7462da8 # v0.1.9
+      - name: Test with Chainsaw
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          chainsaw test --config .chainsaw.yaml  --include-test-regex '^chainsaw$/${{ matrix.tests }}' --test-file='chainsaw-test-vap' --no-color=false
+
+  k8s-version-specific-tests-above-1-28:
+    name: ${{ matrix.k8s-version.name }} - validating-admission-policies - ${{ matrix.tests }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s-version:
+          - name: v1.28
+            version: v1.28.7
+          - name: v1.29
+            version: v1.29.2
+        tests:
+          - ^pod-security-cel$
+          - ^consul-cel$
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b # v4.1.5
+      - name: Create kind cluster
+        uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.10.0
+        with:
+          node_image: kindest/node:${{ matrix.k8s-version.version }}
+          cluster_name: kind
+          config: ./.github/scripts/config/kind/vap-v1beta1.yaml
+      - name: Install latest kyverno with VAP generation enabled
+        run: |
+          set -e
+
+          echo -e "\nDownloading the latest Kyverno installation YAML file..."
+          wget -O install-latest-testing.yaml https://github.com/kyverno/kyverno/raw/main/config/install-latest-testing.yaml
+
+          echo -e "\nEnabling Validating Admission Policy generation..."
+          sed -i 's/--generateValidatingAdmissionPolicy=false/--generateValidatingAdmissionPolicy=true/g' ./install-latest-testing.yaml 
+
+          echo -e "\nInstalling Kyverno in the cluster..."
+          kubectl create -f ./install-latest-testing.yaml 
+
+          echo -e "\nGranting permissions to Kyverno for VAP generation..."
+          kubectl create -f ./.github/scripts/config/generate-validating-admission-policy/generate-vap-cr.yaml
+      - name: Wait for kyverno ready
+        run: |
+          set -e
+          kubectl wait --namespace kyverno --for=condition=ready pod --selector '!job-name' --timeout=120s
+      - name: Install CRDs
+        run: |
+          set -e
+          kubectl apply -f ./.chainsaw/crds
+      - name: Install Chainsaw
+        uses: kyverno/action-install-chainsaw@995cddaee7702e849270b84fa44cdcebe7462da8 # v0.1.9
+      - name: Test with Chainsaw
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          chainsaw test --config .chainsaw.yaml  --include-test-regex '^chainsaw$/${{ matrix.tests }}' --test-file='chainsaw-test-vap' --no-color=false
